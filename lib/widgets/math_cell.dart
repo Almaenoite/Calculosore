@@ -195,14 +195,61 @@ class _MathCellState extends State<MathCell> {
   }
 
   Widget _buildCarryBox(TextEditingController controller, ValueChanged<String> onChanged, bool isLeft) {
+    final String text = controller.text;
+    final bool isCrossed = text.startsWith('/') && text.length >= 2;
+    final String displayCrossed = isCrossed ? text[1] : '';
+    final String displayNew = isCrossed ? (text.length > 2 ? text.substring(2) : '') : text;
+
     return Container(
       color: const Color(0xFFF8FAFC),
-      child: TextField(
-        controller: controller,
-        textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF10B981)),
-        decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.only(top: 4)),
-        onChanged: onChanged,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          TextField(
+            controller: controller,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.transparent),
+            decoration: const InputDecoration(
+                border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.only(top: 4)),
+            onChanged: (val) {
+              setState(() {});
+              onChanged(val);
+            },
+          ),
+          IgnorePointer(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4.0),
+              child: isCrossed
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          displayCrossed,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            decoration: TextDecoration.lineThrough,
+                            decorationColor: Colors.redAccent,
+                            decorationThickness: 2,
+                            color: Colors.redAccent,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (displayNew.isNotEmpty) ...[
+                          const SizedBox(width: 2),
+                          Text(
+                            displayNew,
+                            style: const TextStyle(fontSize: 13, color: Color(0xFF10B981), fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ],
+                    )
+                  : Text(
+                      text,
+                      style: const TextStyle(fontSize: 13, color: Color(0xFF10B981), fontWeight: FontWeight.bold),
+                    ),
+            ),
+          ),
+        ],
       ),
     );
   }
