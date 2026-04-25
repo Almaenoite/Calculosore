@@ -82,14 +82,14 @@ class VerifierService {
 
     if (rowsToCheck.isEmpty) return true;
 
-    // 1. Vérifier l'alignement des virgules (obligatoire pour +/-)
-    int commaCol = -1;
+    // 1. Trouver la position de la virgule de référence (si elle existe)
+    int globalCommaCol = -1;
     for (int r in rowsToCheck) {
       for (int c = 0; c < state.cols; c++) {
         if (state.cells[r][c].valueForVerification.trim() == ',') {
-          if (commaCol == -1) {
-            commaCol = c;
-          } else if (commaCol != c) {
+          if (globalCommaCol == -1) {
+            globalCommaCol = c;
+          } else if (globalCommaCol != c) {
             _showError(context,
                 "Les virgules ne sont pas alignées !\nEn calcul posé, toutes les virgules doivent être dans la même colonne.");
             return false;
@@ -98,23 +98,40 @@ class VerifierService {
       }
     }
 
-    // 2. Vérifier l'alignement des unités (si pas de virgule)
-    if (commaCol == -1) {
-      int globalRightmost = -1;
-      int refRowIndex = -1;
-      for (int r in rowsToCheck) {
-        int rightmost = -1;
-        for (int c = 0; c < state.cols; c++) {
-          final t = state.cells[r][c].valueForVerification.trim();
-          if (t.isNotEmpty && t != '+' && t != '-' && t != 'x' && t != '*' && t != '=' && t != ',') {
-            rightmost = c;
-          }
+    // 2. Vérifier l'alignement des unités
+    int expectedRightmostIfNoComma = -1;
+    int refRowIndex = -1;
+
+    for (int r in rowsToCheck) {
+      int rightmostDigitCol = -1;
+      bool hasCommaInRow = false;
+      for (int c = 0; c < state.cols; c++) {
+        final t = state.cells[r][c].valueForVerification.trim();
+        if (t == ',') {
+          hasCommaInRow = true;
+          // Pour un nombre à virgule, l'unité est juste avant la virgule
+          rightmostDigitCol = c - 1;
+          break;
         }
-        if (rightmost != -1) {
-          if (globalRightmost == -1) {
-            globalRightmost = rightmost;
+        if (t.isNotEmpty && RegExp(r'[0-9]').hasMatch(t)) {
+          rightmostDigitCol = c;
+        }
+      }
+
+      if (rightmostDigitCol != -1) {
+        if (globalCommaCol != -1) {
+          // Si une virgule existe globalement, tous les nombres doivent aligner leur unité à globalCommaCol - 1
+          if (rightmostDigitCol != globalCommaCol - 1 && !hasCommaInRow) {
+             _showError(context,
+                "Mauvais alignement !\nLe nombre entier à la ligne ${r + 1} doit avoir son chiffre des unités sous la colonne juste avant la virgule.");
+            return false;
+          }
+        } else {
+          // Si aucune virgule, on utilise l'alignement à droite classique
+          if (expectedRightmostIfNoComma == -1) {
+            expectedRightmostIfNoComma = rightmostDigitCol;
             refRowIndex = r;
-          } else if (rightmost != globalRightmost) {
+          } else if (rightmostDigitCol != expectedRightmostIfNoComma) {
             _showError(context,
                 "Les nombres ne sont pas bien alignés !\nLe nombre à la ligne ${r + 1} ne finit pas dans la même colonne que celui de la ligne ${refRowIndex + 1}.\nVérifie que les unités sont bien les unes sous les autres.");
             return false;
@@ -123,7 +140,7 @@ class VerifierService {
       }
     }
 
-    // 3. Vérifier les trous
+    // 3. Vérifier les trous à l'intérieur des nombres
     for (int r in rowsToCheck) {
       int leftmost = -1, rightmost = -1;
       for (int c = 0; c < state.cols; c++) {
