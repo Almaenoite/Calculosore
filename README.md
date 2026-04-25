@@ -2,6 +2,13 @@
 
 Calculosore est une application pédagogique conçue pour accompagner les enfants dans l'apprentissage des mathématiques fondamentales. Ce simulateur permet de pratiquer les opérations posées en colonnes (additions, soustractions et multiplications) dans un environnement numérique clair, moderne et sans distraction.
 
+![Aperçu de Calculosore](assets/exemple.png)
+
+## Accès à l'application
+
+- **Version Web** : [Accéder à Calculosore en ligne](https://almaenoite.github.io/Calculosore/)
+- **Version Windows** : [Télécharger l'exécutable portable](windows/calculosore_p.exe)
+
 ## À l'attention des enseignants et des parents
 
 Cet outil a été pensé pour respecter les méthodes d'apprentissage traditionnelles tout en profitant de la flexibilité du numérique :
@@ -17,12 +24,6 @@ Cet outil a été pensé pour respecter les méthodes d'apprentissage traditionn
 ## Utilisation pédagogique
 
 Calculosore peut être utilisé en classe sur un tableau blanc interactif ou à la maison sur une tablette ou un ordinateur. Son design épuré, aux couleurs douces (bleu marine et menthe), évite les distractions visuelles et permet à l'élève de se concentrer exclusivement sur la logique du calcul.
-
-## Accès à l'application
-
-L'application est disponible sous deux formes :
-1. Une version Web accessible via n'importe quel navigateur moderne, idéale pour un usage immédiat sans installation.
-2. Une version Windows pour une utilisation hors ligne ou une intégration directe sur les ordinateurs de l'école.
 
 ## Objectif du projet
 
