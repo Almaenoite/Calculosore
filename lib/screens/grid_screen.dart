@@ -109,14 +109,35 @@ class _GridScreenState extends State<GridScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: List.generate(_gridState.rows, (rowIndex) {
                       final bool isLineRow = _gridState.cells[rowIndex].any((c) => c.isLine);
+                      
+                      // Calculer les colonnes qui contiennent des chiffres (pour la ligne auto)
+                      int minCol = _gridState.cols;
+                      int maxCol = -1;
+                      if (isLineRow) {
+                        for (int r = 0; r < _gridState.rows; r++) {
+                          if (r == rowIndex) continue;
+                          for (int c = 0; c < _gridState.cols; c++) {
+                            final val = _gridState.cells[r][c].text.trim();
+                            if (val.isNotEmpty && val != '+' && val != '-' && val != 'x' && val != '*' && val != '=') {
+                              if (c < minCol) minCol = c;
+                              if (c > maxCol) maxCol = c;
+                            }
+                          }
+                        }
+                        // On ajoute une marge de 1 colonne à gauche pour le signe si besoin
+                        if (minCol > 0) minCol--;
+                      }
+
                       return Row(
                         mainAxisSize: MainAxisSize.min,
                         children: List.generate(_gridState.cols, (colIndex) {
+                          final bool showAutoLine = isLineRow && colIndex >= minCol && colIndex <= maxCol;
                           return RepaintBoundary(
                             child: MathCell(
                               key: ValueKey(_gridState.cells[rowIndex][colIndex]),
                               cell: _gridState.cells[rowIndex][colIndex],
                               isLineRow: isLineRow,
+                              showAutoLine: showAutoLine,
                               onChanged: (value) => _gridState.updateCell(rowIndex, colIndex, value),
                               onLeftCarryChanged: (value) => _gridState.updateCarry(rowIndex, colIndex, true, value),
                               onRightCarryChanged: (value) => _gridState.updateCarry(rowIndex, colIndex, false, value),

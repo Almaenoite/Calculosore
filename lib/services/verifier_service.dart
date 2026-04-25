@@ -74,7 +74,6 @@ class VerifierService {
 
   static bool _checkAlignment(
       BuildContext context, GridState state, int lineRow) {
-    // Collecter toutes les lignes contenant des nombres au-dessus et au-dessous de la barre
     final List<int> rowsToCheck = [];
     for (int i = 0; i < state.rows; i++) {
       if (i == lineRow) continue;
@@ -83,31 +82,48 @@ class VerifierService {
 
     if (rowsToCheck.isEmpty) return true;
 
-    int globalRightmost = -1;
-    int refRowIndex = -1;
-
-    // 1. Vérifier l'alignement à droite (unités)
+    // 1. Vérifier l'alignement des virgules (obligatoire pour +/-)
+    int commaCol = -1;
     for (int r in rowsToCheck) {
-      int rightmost = -1;
       for (int c = 0; c < state.cols; c++) {
-        final t = state.cells[r][c].valueForVerification.trim();
-        if (t.isNotEmpty && t != '+' && t != '-' && t != 'x' && t != '*' && t != '=') {
-          rightmost = c;
-        }
-      }
-      if (rightmost != -1) {
-        if (globalRightmost == -1) {
-          globalRightmost = rightmost;
-          refRowIndex = r;
-        } else if (rightmost != globalRightmost) {
-          _showError(context,
-              "Les nombres ne sont pas bien alignés !\nLe nombre à la ligne ${r + 1} ne finit pas dans la même colonne que celui de la ligne ${refRowIndex + 1}.\nVérifie que les unités sont bien les unes sous les autres.");
-          return false;
+        if (state.cells[r][c].valueForVerification.trim() == ',') {
+          if (commaCol == -1) {
+            commaCol = c;
+          } else if (commaCol != c) {
+            _showError(context,
+                "Les virgules ne sont pas alignées !\nEn calcul posé, toutes les virgules doivent être dans la même colonne.");
+            return false;
+          }
         }
       }
     }
 
-    // 2. Vérifier les trous à l'intérieur des nombres
+    // 2. Vérifier l'alignement des unités (si pas de virgule)
+    if (commaCol == -1) {
+      int globalRightmost = -1;
+      int refRowIndex = -1;
+      for (int r in rowsToCheck) {
+        int rightmost = -1;
+        for (int c = 0; c < state.cols; c++) {
+          final t = state.cells[r][c].valueForVerification.trim();
+          if (t.isNotEmpty && t != '+' && t != '-' && t != 'x' && t != '*' && t != '=' && t != ',') {
+            rightmost = c;
+          }
+        }
+        if (rightmost != -1) {
+          if (globalRightmost == -1) {
+            globalRightmost = rightmost;
+            refRowIndex = r;
+          } else if (rightmost != globalRightmost) {
+            _showError(context,
+                "Les nombres ne sont pas bien alignés !\nLe nombre à la ligne ${r + 1} ne finit pas dans la même colonne que celui de la ligne ${refRowIndex + 1}.\nVérifie que les unités sont bien les unes sous les autres.");
+            return false;
+          }
+        }
+      }
+    }
+
+    // 3. Vérifier les trous
     for (int r in rowsToCheck) {
       int leftmost = -1, rightmost = -1;
       for (int c = 0; c < state.cols; c++) {
@@ -152,6 +168,19 @@ class VerifierService {
     for (int col = state.cols - 1; col >= 0; col--) {
       if (!_colHasData(state, col)) continue;
 
+      // Si c'est une virgule, on vérifie juste sa présence
+      bool isCommaCol = false;
+      for (int r in operandRows) {
+        if (state.cells[r][col].valueForVerification.trim() == ',') isCommaCol = true;
+      }
+      if (isCommaCol) {
+        if (state.cells[lineRow + 1][col].valueForVerification.trim() != ',') {
+          _showError(context, "Tu as oublié la virgule dans le résultat !");
+          return;
+        }
+        continue;
+      }
+
       int sum = carry;
       final List<int> values = [];
       for (int r in operandRows) {
@@ -164,7 +193,6 @@ class VerifierService {
       final int nextCarry = sum ~/ 10;
       final int userResult = _parseCellOrMinus1(state.cells[lineRow + 1][col]);
 
-      // Si la colonne est vide partout, on ignore
       if (values.isEmpty && carry == 0 && userResult == -1) continue;
 
       if (userResult == -1 && (sum > 0)) {
@@ -205,10 +233,20 @@ class VerifierService {
     for (int col = state.cols - 1; col >= 0; col--) {
       if (!_colHasData(state, col)) continue;
 
-      // Le premier nombre est le point de départ
-      int currentVal = _parseCell(state.cells[operandRows[0]][col]) - borrow;
+      // Gestion virgule
+      bool isCommaCol = false;
+      for (int r in operandRows) {
+        if (state.cells[r][col].valueForVerification.trim() == ',') isCommaCol = true;
+      }
+      if (isCommaCol) {
+        if (state.cells[lineRow + 1][col].valueForVerification.trim() != ',') {
+          _showError(context, "Tu as oublié la virgule dans le résultat !");
+          return;
+        }
+        continue;
+      }
 
-      // Soustraire tous les autres nombres
+      int currentVal = _parseCell(state.cells[operandRows[0]][col]) - borrow;
       int subtrahendSum = 0;
       for (int i = 1; i < operandRows.length; i++) {
         subtrahendSum += _parseCell(state.cells[operandRows[i]][col]);
@@ -224,7 +262,6 @@ class VerifierService {
       final int userResult = _parseCellOrMinus1(state.cells[lineRow + 1][col]);
 
       if (userResult == -1 && (currentVal > 0 || subtrahendSum > 0 || borrow > 0)) {
-        // Ignorer si tout est vraiment vide
         bool allEmpty = true;
         for (int r in operandRows) {
           if (state.cells[r][col].text.isNotEmpty) allEmpty = false;
@@ -248,9 +285,9 @@ class VerifierService {
 
   static void _verifyMultiplication(BuildContext context, GridState state,
       int lineRow1, List<int> lineRows) {
-    // Lire op1 (ligne au-dessus de l'opérateur)
+    
+    // Pour la multiplication, on ignore les virgules pendant le calcul
     final int op1 = _readRowAsNumber(state, lineRow1 - 2);
-    // Lire op2 (chiffres seulement, sans le signe x)
     final int op2 = _readRowAsNumber(state, lineRow1 - 1, excludeOperator: true);
 
     if (op1 == 0 || op2 == 0) {
@@ -258,82 +295,60 @@ class VerifierService {
       return;
     }
 
-    final int expectedFinal = op1 * op2;
+    // Calculer le nombre de décimales attendues
+    int dec1 = _countDecimals(state, lineRow1 - 2);
+    int dec2 = _countDecimals(state, lineRow1 - 1);
+    int expectedDecimals = dec1 + dec2;
 
-    // Cas simple : une seule ligne de séparation → résultat direct
-    if (lineRows.length == 1) {
-      final int userResult = _readRowAsNumber(state, lineRow1 + 1);
-      if (userResult == 0) {
-        _showError(context, "Il manque le résultat en dessous de la ligne.");
-        return;
-      }
-      if (userResult != expectedFinal) {
-        _showError(context,
-            "Ce n'est pas le bon résultat !\n$op1 × $op2 = $expectedFinal, pas $userResult.");
-        return;
-      }
-      _showSuccess(context);
-      return;
+    double expectedFinal = (op1 * op2) / _pow10(expectedDecimals);
+
+    // Vérifier le résultat final (on le lit avec sa virgule)
+    int lastRow = lineRows.last + 1;
+    if (lastRow >= state.rows) {
+       _showError(context, "Il manque le résultat final.");
+       return;
     }
-
-    // Cas avec produits partiels : deux lignes de séparation
-    final int lineRow2 = lineRows[1];
-
-    // Collecter les chiffres de op2 de droite à gauche
-    final List<int> op2Digits = [];
-    for (int c = state.cols - 1; c >= 0; c--) {
-      final t = state.cells[lineRow1 - 1][c].valueForVerification.trim();
-      if (t.isNotEmpty && t != 'x' && t != '*') {
-        final d = int.tryParse(t);
-        if (d != null) op2Digits.add(d);
-      }
-    }
-
-    // Collecter les lignes de produits partiels entre line1 et line2
-    final List<int> partialRows = [];
-    for (int r = lineRow1 + 1; r < lineRow2; r++) {
-      if (_rowHasData(state, r)) partialRows.add(r);
-    }
-
-    // Trouver la colonne la plus à droite avec des données sous lineRow1
-    // (sert de référence pour calculer le décalage des produits partiels)
-    int rightmostRef = 0;
-    for (int r = lineRow1 + 1; r < state.rows; r++) {
-      for (int c = state.cols - 1; c >= 0; c--) {
-        if (state.cells[r][c].valueForVerification.trim().isNotEmpty) {
-          if (c > rightmostRef) rightmostRef = c;
-          break;
+    
+    double userFinal = _readRowAsDouble(state, lastRow);
+    
+    if ((userFinal - expectedFinal).abs() > 0.000001) {
+        String msg = "Le résultat n'est pas correct !\n";
+        msg += "Sans les virgules : $op1 × $op2 = ${op1 * op2}.\n";
+        if (expectedDecimals > 0) {
+          msg += "Avec les virgules ($dec1 + $dec2 = $expectedDecimals chiffres après la virgule), on devrait avoir $expectedFinal.";
         }
-      }
-    }
-
-    // Vérifier chaque produit partiel (avec décalage positionnel)
-    for (int i = 0; i < op2Digits.length && i < partialRows.length; i++) {
-      final int digit = op2Digits[i];
-      final int expectedPartial = op1 * digit * _pow10(i);
-      final int userPartial = _readRowWithShift(state, partialRows[i], rightmostRef);
-      if (userPartial != expectedPartial) {
-        _showError(context,
-            "Erreur dans le produit partiel !\n$op1 × $digit = ${op1 * digit}${i > 0 ? ' (décalé de $i position${i > 1 ? 's' : ''})' : ''}.\nAttention aux zéros de décalage !");
+        _showError(context, msg);
         return;
-      }
     }
 
-    // Vérifier le résultat final
-    if (lineRow2 + 1 >= state.rows) {
-      _showError(context, "Il manque le résultat final.");
-      return;
-    }
-    final int userFinal = _readRowAsNumber(state, lineRow2 + 1);
-    if (userFinal != expectedFinal) {
-      _showError(context,
-          "Le résultat final n'est pas correct !\n$op1 × $op2 = $expectedFinal, pas $userFinal.");
-      return;
-    }
     _showSuccess(context);
   }
 
   // ─── Utilitaires ──────────────────────────────────────────────────────────
+
+  static int _countDecimals(GridState state, int row) {
+    int commaIdx = -1;
+    int lastDigitIdx = -1;
+    for (int c = 0; c < state.cols; c++) {
+      final t = state.cells[row][c].valueForVerification.trim();
+      if (t == ',') commaIdx = c;
+      if (t.isNotEmpty && RegExp(r'[0-9]').hasMatch(t)) lastDigitIdx = c;
+    }
+    if (commaIdx == -1) return 0;
+    return lastDigitIdx - commaIdx;
+  }
+
+  static double _readRowAsDouble(GridState state, int row) {
+    String s = "";
+    for (int c = 0; c < state.cols; c++) {
+      final t = state.cells[row][c].valueForVerification.trim();
+      if (t.isNotEmpty) {
+        if (t == ',') s += ".";
+        else if (RegExp(r'[0-9]').hasMatch(t)) s += t;
+      }
+    }
+    return double.tryParse(s) ?? 0.0;
+  }
 
   static bool _colHasData(GridState state, int col) {
     return state.cells.any((row) => row[col].text.trim().isNotEmpty);
@@ -345,13 +360,14 @@ class VerifierService {
 
   static int _parseCell(CellData cell) {
     final t = cell.valueForVerification.trim();
-    if (t.isEmpty) return 0;
+    if (t.isEmpty || t == ',') return 0;
     return int.tryParse(t.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
   }
 
   static int _parseCellOrMinus1(CellData cell) {
     final t = cell.valueForVerification.trim();
     if (t.isEmpty) return -1;
+    if (t == ',') return -2; // Code spécial pour virgule
     return int.tryParse(t.replaceAll(RegExp(r'[^0-9]'), '')) ?? -1;
   }
 
@@ -389,12 +405,10 @@ class VerifierService {
     final StringBuffer sb = StringBuffer();
     for (int c = 0; c < state.cols; c++) {
       final t = state.cells[row][c].valueForVerification.trim();
-      if (excludeOperator && (t == 'x' || t == '*' || t == '+' || t == '-')) {
-        continue;
-      }
-      if (t.isNotEmpty) sb.write(t);
+      if (excludeOperator && (t == 'x' || t == '*' || t == '+' || t == '-')) continue;
+      if (t.isNotEmpty && RegExp(r'[0-9]').hasMatch(t)) sb.write(t);
     }
-    return int.tryParse(sb.toString().replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+    return int.tryParse(sb.toString()) ?? 0;
   }
 
   // ─── Dialogues ────────────────────────────────────────────────────────────

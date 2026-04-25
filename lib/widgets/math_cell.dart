@@ -10,6 +10,7 @@ const double kLineRowHeight = 18;
 class MathCell extends StatefulWidget {
   final CellData cell;
   final bool isLineRow;
+  final bool showAutoLine;
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onLeftCarryChanged;
   final ValueChanged<String> onRightCarryChanged;
@@ -21,6 +22,7 @@ class MathCell extends StatefulWidget {
     required this.onLeftCarryChanged,
     required this.onRightCarryChanged,
     this.isLineRow = false,
+    this.showAutoLine = false,
   }) : super(key: key);
 
   @override
@@ -76,13 +78,13 @@ class _MathCellState extends State<MathCell> {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            if (widget.cell.isLine)
+            if (widget.cell.isLine || widget.showAutoLine)
               Container(
                 height: 4,
-                margin: const EdgeInsets.symmetric(horizontal: 2),
+                margin: const EdgeInsets.symmetric(horizontal: -1), // Fusionner les lignes
                 decoration: BoxDecoration(
                   color: const Color(0xFF1E3A8A), // Navy de l'icône
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(0), // Ligne droite
                 ),
               ),
             Positioned.fill(
