@@ -7,7 +7,7 @@ Calculosore est une application pédagogique conçue pour accompagner les enfant
 ## Accès à l'application
 
 - **Version Web** : [Accéder à Calculosore en ligne](https://almaenoite.github.io/Calculosore/)
-- **Version Windows** : [Télécharger l'exécutable portable](windows/calculosore_p.exe)
+- **Version Windows** : [Télécharger l'exécutable portable](calculosore_p.exe)
 
 ## À l'attention des enseignants et des parents
 
