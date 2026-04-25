@@ -1,18 +1,26 @@
 import 'package:flutter/material.dart';
 import '../models/cell_data.dart';
 
+const double kCellWidth = 72; // Un peu plus large pour être plus "smooth"
+const double kCarryHeight = 24;
+const double kMainHeight = 56;
+const double kCellHeight = kCarryHeight + 1 + kMainHeight;
+const double kLineRowHeight = 18;
+
 class MathCell extends StatefulWidget {
   final CellData cell;
+  final bool isLineRow;
   final ValueChanged<String> onChanged;
-  final VoidCallback onDoubleTap;
-  final VoidCallback onCarryDoubleTap;
+  final ValueChanged<String> onLeftCarryChanged;
+  final ValueChanged<String> onRightCarryChanged;
 
   const MathCell({
     Key? key,
     required this.cell,
     required this.onChanged,
-    required this.onDoubleTap,
-    required this.onCarryDoubleTap,
+    required this.onLeftCarryChanged,
+    required this.onRightCarryChanged,
+    this.isLineRow = false,
   }) : super(key: key);
 
   @override
@@ -21,12 +29,16 @@ class MathCell extends StatefulWidget {
 
 class _MathCellState extends State<MathCell> {
   late TextEditingController _controller;
+  late TextEditingController _leftCarryController;
+  late TextEditingController _rightCarryController;
   final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.cell.text);
+    _leftCarryController = TextEditingController(text: widget.cell.topLeftCarry);
+    _rightCarryController = TextEditingController(text: widget.cell.topRightCarry);
   }
 
   @override
@@ -38,101 +50,159 @@ class _MathCellState extends State<MathCell> {
         selection: TextSelection.collapsed(offset: widget.cell.text.length),
       );
     }
+    if (widget.cell.topLeftCarry != _leftCarryController.text) {
+      _leftCarryController.value = _leftCarryController.value.copyWith(text: widget.cell.topLeftCarry);
+    }
+    if (widget.cell.topRightCarry != _rightCarryController.text) {
+      _rightCarryController.value = _rightCarryController.value.copyWith(text: widget.cell.topRightCarry);
+    }
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _leftCarryController.dispose();
+    _rightCarryController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    bool isLine = widget.cell.isLine;
-    bool isCrossedOut = widget.cell.isCrossedOut;
-    String carryText = widget.cell.carryText;
-    bool isCarryCrossedOut = widget.cell.isCarryCrossedOut;
-
-    return GestureDetector(
-      onDoubleTap: widget.onDoubleTap,
-      child: Container(
-        width: 60,
-        height: 60,
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.blueGrey.shade100, width: 1.0),
-          color: Colors.white,
-        ),
-        alignment: Alignment.center,
+    if (widget.isLineRow) {
+      return SizedBox(
+        width: kCellWidth,
+        height: kLineRowHeight,
         child: Stack(
           alignment: Alignment.center,
           children: [
-            if (isLine)
+            if (widget.cell.isLine)
               Container(
                 height: 4,
-                color: Colors.black,
-                width: double.infinity,
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E3A8A), // Navy de l'icône
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
-            TextField(
-              controller: _controller,
-              focusNode: _focusNode,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 36,
-                color: Colors.transparent, // On cache le texte brut pour superposer le texte formaté
+            Positioned.fill(
+              child: TextField(
+                controller: _controller,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.transparent, fontSize: 1),
+                cursorColor: Colors.transparent,
+                decoration: const InputDecoration(border: InputBorder.none, isDense: true),
+                onChanged: (val) {
+                  setState(() { widget.cell.text = val; });
+                  widget.onChanged(val);
+                },
               ),
-              cursorColor: Colors.blue,
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
-                isDense: true,
-              ),
-              onChanged: (val) {
-                // Mise à jour locale pour éviter le lag global
-                setState(() {
-                  widget.cell.text = val;
-                });
-                widget.onChanged(val);
-              },
             ),
-            if (!isLine)
-              IgnorePointer(
-                child: Text(
-                  widget.cell.mainText,
-                  style: TextStyle(
-                    fontSize: 36,
-                    decoration: isCrossedOut ? TextDecoration.lineThrough : TextDecoration.none,
-                    decorationColor: Colors.red,
-                    decorationThickness: 2.0,
-                    color: isCrossedOut ? Colors.red.shade700 : Colors.black87,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            if (carryText.isNotEmpty)
-              Positioned(
-                top: 2,
-                right: 4,
-                child: GestureDetector(
-                  onDoubleTap: widget.onCarryDoubleTap,
-                  child: Container(
-                    color: Colors.transparent, // Pour étendre la zone de clic
-                    padding: const EdgeInsets.all(2.0),
-                    child: Text(
-                      carryText,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: isCarryCrossedOut ? Colors.red : Colors.blue.shade700,
-                        fontWeight: FontWeight.bold,
-                        decoration: isCarryCrossedOut ? TextDecoration.lineThrough : TextDecoration.none,
-                        decorationThickness: 2.0,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
           ],
         ),
+      );
+    }
+
+    final bool isCrossedOut = widget.cell.isCrossedOut;
+    final String crossedDigit = widget.cell.crossedDigit;
+    final String newDigit = widget.cell.newDigit;
+    final String plainText = widget.cell.text;
+
+    return Container(
+      width: kCellWidth,
+      height: kCellHeight,
+      margin: const EdgeInsets.all(1), // Petit espacement entre les cases
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blueGrey.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          // Zone de retenues
+          SizedBox(
+            height: kCarryHeight,
+            child: Row(
+              children: [
+                Expanded(child: _buildCarryBox(_leftCarryController, widget.onLeftCarryChanged, true)),
+                Container(width: 1, color: const Color(0xFFE2E8F0)),
+                Expanded(child: _buildCarryBox(_rightCarryController, widget.onRightCarryChanged, false)),
+              ],
+            ),
+          ),
+          Container(height: 1.5, color: const Color(0xFFE2E8F0)),
+          // Zone chiffre principal
+          Expanded(
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                TextField(
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 32, color: Colors.transparent),
+                  cursorColor: const Color(0xFF1E3A8A),
+                  decoration: const InputDecoration(border: InputBorder.none, isDense: true),
+                  onChanged: (val) {
+                    setState(() { widget.cell.text = val; });
+                    widget.onChanged(val);
+                  },
+                ),
+                IgnorePointer(
+                  child: isCrossedOut
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              crossedDigit,
+                              style: TextStyle(
+                                fontSize: newDigit.isNotEmpty ? 22 : 32,
+                                decoration: TextDecoration.lineThrough,
+                                decorationColor: Colors.redAccent,
+                                decorationThickness: 3,
+                                color: Colors.redAccent.withOpacity(0.8),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            if (newDigit.isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              Text(
+                                newDigit,
+                                style: const TextStyle(fontSize: 28, color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ],
+                        )
+                      : Text(
+                          plainText,
+                          style: const TextStyle(fontSize: 32, color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold),
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCarryBox(TextEditingController controller, ValueChanged<String> onChanged, bool isLeft) {
+    return Container(
+      color: const Color(0xFFF8FAFC),
+      child: TextField(
+        controller: controller,
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF10B981)),
+        decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.only(top: 4)),
+        onChanged: onChanged,
       ),
     );
   }

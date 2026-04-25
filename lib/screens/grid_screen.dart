@@ -33,59 +33,94 @@ class _GridScreenState extends State<GridScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+
     return Scaffold(
-      backgroundColor: Colors.blueGrey.shade50,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        toolbarHeight: 80,
+        leadingWidth: 100,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 16.0),
+          child: Image.asset('assets/logo.png', fit: BoxFit.contain),
+        ),
         title: const Text('Calculosore'),
-        centerTitle: true,
         actions: [
+          // Bouton Vérifier plus discret et élégant dans l'AppBar
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: ElevatedButton.icon(
+              onPressed: _verify,
+              icon: const Icon(Icons.check_circle_rounded, size: 20),
+              label: const Text('Vérifier', style: TextStyle(fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Bouton Effacer
           IconButton(
-            icon: const Icon(Icons.cleaning_services),
-            tooltip: 'Tout effacer',
+            icon: const Icon(Icons.cleaning_services_rounded, color: Color(0xFF1E3A8A)),
             onPressed: () => _gridState.reset(),
+            tooltip: 'Tout effacer',
           ),
           const SizedBox(width: 16),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: InteractiveViewer(
-              constrained: false,
-              boundaryMargin: const EdgeInsets.all(200),
-              minScale: 0.5,
-              maxScale: 3.0,
-              // Permet de centrer la grille au milieu de l'écran (si elle est plus petite)
-              alignment: Alignment.center,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFFF1F5F9),
+              const Color(0xFFE2E8F0),
+              const Color(0xFFF1F5F9).withOpacity(0.8),
+            ],
+          ),
+        ),
+        child: InteractiveViewer(
+          constrained: false,
+          boundaryMargin: const EdgeInsets.all(500),
+          minScale: 0.4,
+          maxScale: 2.5,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: screenSize.width,
+              minHeight: screenSize.height,
+            ),
+            child: Center(
               child: Padding(
-                padding: const EdgeInsets.all(32.0),
+                padding: const EdgeInsets.all(100.0), // Plus d'espace pour le confort
                 child: Container(
-                  decoration: const BoxDecoration(
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 10,
-                        spreadRadius: 2,
-                      ),
-                    ],
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(32),
+                    border: Border.all(color: Colors.white.withOpacity(0.6), width: 2),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: List.generate(_gridState.rows, (rowIndex) {
+                      final bool isLineRow = _gridState.cells[rowIndex].any((c) => c.isLine);
                       return Row(
                         mainAxisSize: MainAxisSize.min,
                         children: List.generate(_gridState.cols, (colIndex) {
-                          return MathCell(
-                            cell: _gridState.cells[rowIndex][colIndex],
-                            onChanged: (value) {
-                              _gridState.updateCell(rowIndex, colIndex, value);
-                            },
-                            onDoubleTap: () {
-                              _gridState.toggleCrossOut(rowIndex, colIndex);
-                            },
-                            onCarryDoubleTap: () {
-                              _gridState.toggleCarryCrossOut(rowIndex, colIndex);
-                            },
+                          return RepaintBoundary(
+                            child: MathCell(
+                              key: ValueKey(_gridState.cells[rowIndex][colIndex]),
+                              cell: _gridState.cells[rowIndex][colIndex],
+                              isLineRow: isLineRow,
+                              onChanged: (value) => _gridState.updateCell(rowIndex, colIndex, value),
+                              onLeftCarryChanged: (value) => _gridState.updateCarry(rowIndex, colIndex, true, value),
+                              onRightCarryChanged: (value) => _gridState.updateCarry(rowIndex, colIndex, false, value),
+                            ),
                           );
                         }),
                       );
@@ -95,38 +130,7 @@ class _GridScreenState extends State<GridScreen> {
               ),
             ),
           ),
-          Container(
-            padding: const EdgeInsets.all(24.0),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 10,
-                  offset: Offset(0, -2),
-                )
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.check_circle_outline, size: 28),
-                  label: const Text('Vérifier mon calcul', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 20),
-                    backgroundColor: Colors.green.shade600,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                  ),
-                  onPressed: _verify,
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

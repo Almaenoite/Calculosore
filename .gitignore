@@ -11,6 +11,7 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+.metadata
 
 # IntelliJ related
 *.iml
@@ -18,20 +19,31 @@ migrate_working_dir/
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+# Visual Studio Code related
+.vscode/
 
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
+.flutter-plugins
 .flutter-plugins-dependencies
+.packages
 .pub-cache/
 .pub/
 /build/
-/coverage/
+pubspec.lock
+
+# Ignorer toutes les plateformes sauf le Web (pour GitHub Pages)
+/android/
+/ios/
+/linux/
+/macos/
+/windows/
+/test/
+
+# Web related
+build/web/
 
 # Symbolication related
 app.*.symbols

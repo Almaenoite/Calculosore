@@ -1,12 +1,12 @@
 {
-    "name": "calculosore",
-    "short_name": "calculosore",
+    "name": "Calculosore",
+    "short_name": "Calculosore",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#F1F5F9",
+    "theme_color": "#1E3A8A",
+    "description": "Calculosore",
+    "orientation": "landscape",
     "prefer_related_applications": false,
     "icons": [
         {
