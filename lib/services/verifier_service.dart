@@ -28,17 +28,32 @@ class VerifierService {
       return;
     }
 
-    // 2. Trouver l'opérateur
+    // 2. Trouver l'opérateur (doit être sur la ligne juste au-dessus de la barre)
     String op = '';
-    for (int i = 0; i < lineRow; i++) {
-      for (int j = 0; j < state.cols; j++) {
-        final t = state.cells[i][j].valueForVerification.trim();
-        if (t == '+' || t == '-' || t == 'x' || t == '*') op = t;
-      }
+    int opRow = lineRow - 1;
+    for (int j = 0; j < state.cols; j++) {
+      final t = state.cells[opRow][j].valueForVerification.trim();
+      if (t == '+' || t == '-' || t == 'x' || t == '*') op = t;
     }
 
     if (op.isEmpty) {
-      _showError(context, "Je ne trouve pas le signe de l'opération (+, -, x).");
+      _showError(context,
+          "Le signe de l'opération (+, -, x) doit être placé sur la deuxième ligne, à gauche du nombre.");
+      return;
+    }
+
+    // 2b. Vérifier que le signe '=' est présent
+    bool hasEqual = false;
+    for (int i = 0; i < state.rows; i++) {
+      for (int j = 0; j < state.cols; j++) {
+        if (state.cells[i][j].valueForVerification.trim() == '=') {
+          hasEqual = true;
+          break;
+        }
+      }
+    }
+    if (!hasEqual) {
+      _showError(context, "Il manque le signe '=' dans ton calcul.");
       return;
     }
 
@@ -59,19 +74,45 @@ class VerifierService {
 
   static bool _checkAlignment(
       BuildContext context, GridState state, int lineRow) {
-    final Map<int, String> rowLabels = {
-      lineRow - 2: 'le premier nombre',
-      lineRow - 1: 'le deuxième nombre',
-      lineRow + 1: 'le résultat',
-    };
+    // Collecter toutes les lignes contenant des nombres au-dessus et au-dessous de la barre
+    final List<int> rowsToCheck = [];
+    for (int i = 0; i < state.rows; i++) {
+      if (i == lineRow) continue;
+      if (_rowHasDigits(state, i)) rowsToCheck.add(i);
+    }
 
-    for (final entry in rowLabels.entries) {
-      final int r = entry.key;
-      if (r < 0 || r >= state.rows) continue;
+    if (rowsToCheck.isEmpty) return true;
+
+    int globalRightmost = -1;
+    int refRowIndex = -1;
+
+    // 1. Vérifier l'alignement à droite (unités)
+    for (int r in rowsToCheck) {
+      int rightmost = -1;
+      for (int c = 0; c < state.cols; c++) {
+        final t = state.cells[r][c].valueForVerification.trim();
+        if (t.isNotEmpty && t != '+' && t != '-' && t != 'x' && t != '*' && t != '=') {
+          rightmost = c;
+        }
+      }
+      if (rightmost != -1) {
+        if (globalRightmost == -1) {
+          globalRightmost = rightmost;
+          refRowIndex = r;
+        } else if (rightmost != globalRightmost) {
+          _showError(context,
+              "Les nombres ne sont pas bien alignés !\nLe nombre à la ligne ${r + 1} ne finit pas dans la même colonne que celui de la ligne ${refRowIndex + 1}.\nVérifie que les unités sont bien les unes sous les autres.");
+          return false;
+        }
+      }
+    }
+
+    // 2. Vérifier les trous à l'intérieur des nombres
+    for (int r in rowsToCheck) {
       int leftmost = -1, rightmost = -1;
       for (int c = 0; c < state.cols; c++) {
         final t = state.cells[r][c].valueForVerification.trim();
-        if (t.isNotEmpty && t != '+' && t != '-' && t != 'x' && t != '*') {
+        if (t.isNotEmpty && t != '+' && t != '-' && t != 'x' && t != '*' && t != '=') {
           if (leftmost == -1) leftmost = c;
           rightmost = c;
         }
@@ -81,7 +122,7 @@ class VerifierService {
         final t = state.cells[r][c].valueForVerification.trim();
         if (t.isEmpty) {
           _showError(context,
-              "Les chiffres de ${entry.value} ne sont pas alignés !\nIl y a un trou entre les chiffres.");
+              "Les chiffres à la ligne ${r + 1} ne sont pas alignés !\nIl y a un trou entre les chiffres.");
           return false;
         }
       }
@@ -89,27 +130,53 @@ class VerifierService {
     return true;
   }
 
+  static bool _rowHasDigits(GridState state, int row) {
+    for (int c = 0; c < state.cols; c++) {
+      final t = state.cells[row][c].valueForVerification.trim();
+      if (t.isNotEmpty && t != '+' && t != '-' && t != 'x' && t != '*' && t != '=') return true;
+    }
+    return false;
+  }
+
   // ─── Addition ─────────────────────────────────────────────────────────────
 
   static void _verifyAddition(
       BuildContext context, GridState state, int lineRow) {
+    // Identifier toutes les lignes d'opérandes au-dessus de la barre
+    final List<int> operandRows = [];
+    for (int r = 0; r < lineRow; r++) {
+      if (_rowHasDigits(state, r)) operandRows.add(r);
+    }
+
     int carry = 0;
     for (int col = state.cols - 1; col >= 0; col--) {
       if (!_colHasData(state, col)) continue;
-      final int op1 = _parseCell(state.cells[lineRow - 2][col]);
-      final int op2 = _parseCell(state.cells[lineRow - 1][col]);
-      final int sum = op1 + op2 + carry;
+
+      int sum = carry;
+      final List<int> values = [];
+      for (int r in operandRows) {
+        final val = _parseCell(state.cells[r][col]);
+        sum += val;
+        if (val != 0 || state.cells[r][col].text.isNotEmpty) values.add(val);
+      }
+
       final int expected = sum % 10;
       final int nextCarry = sum ~/ 10;
       final int userResult = _parseCellOrMinus1(state.cells[lineRow + 1][col]);
-      if (op1 == 0 && op2 == 0 && carry == 0 && userResult == -1) continue;
-      if (userResult == -1 && (op1 > 0 || op2 > 0 || carry > 0)) {
+
+      // Si la colonne est vide partout, on ignore
+      if (values.isEmpty && carry == 0 && userResult == -1) continue;
+
+      if (userResult == -1 && (sum > 0)) {
         _showError(context, "Il manque le résultat dans cette colonne.");
         return;
       }
+
       if (userResult != expected && userResult != -1) {
+        String detail = values.join(' + ');
+        if (carry > 0) detail += " + retenue $carry";
         _showError(context,
-            "Erreur ! $op1 + $op2${carry > 0 ? ' + retenue $carry' : ''} = $sum.\nOn écrit $expected en bas et on retient $nextCarry.");
+            "Erreur ! $detail = $sum.\nOn écrit $expected en bas et on retient $nextCarry.");
         return;
       }
       carry = nextCarry;
@@ -126,27 +193,50 @@ class VerifierService {
 
   static void _verifySubtraction(
       BuildContext context, GridState state, int lineRow) {
+    // Identifier toutes les lignes d'opérandes au-dessus de la barre
+    final List<int> operandRows = [];
+    for (int r = 0; r < lineRow; r++) {
+      if (_rowHasDigits(state, r)) operandRows.add(r);
+    }
+
+    if (operandRows.isEmpty) return;
+
     int borrow = 0;
     for (int col = state.cols - 1; col >= 0; col--) {
       if (!_colHasData(state, col)) continue;
-      final int op1 = _parseCell(state.cells[lineRow - 2][col]);
-      final int op2 = _parseCell(state.cells[lineRow - 1][col]);
-      int currentVal = op1 - borrow;
+
+      // Le premier nombre est le point de départ
+      int currentVal = _parseCell(state.cells[operandRows[0]][col]) - borrow;
+
+      // Soustraire tous les autres nombres
+      int subtrahendSum = 0;
+      for (int i = 1; i < operandRows.length; i++) {
+        subtrahendSum += _parseCell(state.cells[operandRows[i]][col]);
+      }
+
       int nextBorrow = 0;
-      if (currentVal < op2) {
+      while (currentVal < subtrahendSum) {
         currentVal += 10;
-        nextBorrow = 1;
+        nextBorrow++;
       }
-      final int expected = currentVal - op2;
+
+      final int expected = currentVal - subtrahendSum;
       final int userResult = _parseCellOrMinus1(state.cells[lineRow + 1][col]);
-      if (op1 == 0 && op2 == 0 && borrow == 0 && userResult == -1) continue;
-      if (userResult == -1 && (op1 > 0 || op2 > 0 || borrow > 0)) {
-        _showError(context, "Il manque le résultat dans cette colonne.");
-        return;
+
+      if (userResult == -1 && (currentVal > 0 || subtrahendSum > 0 || borrow > 0)) {
+        // Ignorer si tout est vraiment vide
+        bool allEmpty = true;
+        for (int r in operandRows) {
+          if (state.cells[r][col].text.isNotEmpty) allEmpty = false;
+        }
+        if (!allEmpty) {
+          _showError(context, "Il manque le résultat dans cette colonne.");
+          return;
+        }
       }
+
       if (userResult != expected && userResult != -1) {
-        _showError(context,
-            "Erreur ! $op1 - $op2${borrow > 0 ? " (avec l'emprunt)" : ''} = $expected.");
+        _showError(context, "Erreur de calcul dans cette colonne !");
         return;
       }
       borrow = nextBorrow;
